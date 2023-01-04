@@ -1,0 +1,135 @@
+% Created 2023-01-03 Tue 22:15
+\documentclass[9pt, b5paper]{article}
+\usepackage{xeCJK}
+\usepackage{minted}
+\usepackage[T1]{fontenc}
+\usepackage[scaled]{beraserif}
+\usepackage[scaled]{berasans}
+\usepackage[scaled]{beramono}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage{float}
+\usepackage{textcomp}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{latexsym}
+\usepackage{natbib}
+\usepackage{geometry}
+\geometry{left=1.2cm,right=1.2cm,top=1.5cm,bottom=1.2cm}
+\newminted{common-lisp}{fontsize=\footnotesize} 
+\usepackage[xetex,colorlinks=true,CJKbookmarks=true,linkcolor=blue,urlcolor=blue,menucolor=blue]{hyperref}
+\author{deepwaterooo}
+\date{\today}
+\title{unity游戏热更新服务端服务器}
+\hypersetup{
+  pdfkeywords={},
+  pdfsubject={},
+  pdfcreator={Emacs 27.2 (Org mode 8.2.7c)}}
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+
+\section{游戏服务端简单开发}
+\label{sec-1}
+\begin{itemize}
+\item 想开发出一个最简易的,只要能够上传下载热更新资源代码包就可以的手游戏服务端
+\item 但是因为之前完全没有这方面的基础,感觉无从下手
+\begin{itemize}
+\item 可以看明白最简单的python代码的代理服务器,服务端客户端交互,但是关于资源包的上传下载,MD5码检测是否更新等,服务端的模块化设计仍然概念不够
+\item 想要先学习两个常用大众化游戏服务器框架, ET或者是其它
+\item 会尝试从网络上最简单的任何语言的手游戏热更新服务端开始,希望能够尽快实现一个可以适配自己游戏的手游服务端
+\end{itemize}
+\item \url{https://blog.csdn.net/yupu56/article/details/106993157} 这个博主真正手动做过实现过,并且有相对深入狠多的理解,可以参考他的很多优化配置来学习
+\end{itemize}
+
+\section{unity游戏接安卓SDK过程中的细节}
+\label{sec-2}
+\begin{itemize}
+\item 网络上小打小闹的样本互调法两三个星期前就练习过连好了
+\item 现在实现和面对的是商业级应用产品专业安卓SDK接入,面对商业级高标准严要求的处理办法.会适配两种不同的构建方法: 安卓SDK打包入游戏,用unity引擎构建应用,和unity游戏导出安卓,安卓端调试和构建应用.会对安卓SDK与游戏端的交互有相对更为严格的交互标准,比如进安卓SDK端时游戏的暂停而非游戏端退出,相互切换过程中不能有黑屏背景屏等,以及想要有更高的适合安卓平台的渲染效率等
+\end{itemize}
+
+\section{过程中的问题,和需要再改的点记录一下: 到时自己再补}
+\label{sec-3}
+\begin{itemize}
+\item 这个游戏启动的过程会是: 安卓SDK先走一遍流程,比如你有我deepwaterooo家游戏的帐户吗?没有先申请注册账户等等\ldots{}\ldots{}.然后才进入游戏端.这是参考项目源项目中安卓SDK的流程,因为自己正在学习和练习一个完美的安卓SDK接入,暂时就把这个SDK 流程在自己项目中再走一遍,等都连通了,再作修改
+\item 启动splashSCreen 背景高清图片太大了,2000kb直接报不能画画不出来.我暂时直接把背景图片扔了没用了\ldots{}\ldots{}
+\item 给游戏应用更长的生命周期,很好玩的权限也可以再添加几个
+\begin{minted}[fontsize=\scriptsize,linenos=false]{xml}
+<!-- 获取sd卡写的权限 -->
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+<!-- 允许读取手机状态 -->
+<uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+<!-- 在sdcard中创建/删除文件的权限,注意这里有权限的许可 -->
+<uses-permission
+    android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS"
+    tools:ignore="ProtectedPermissions" />
+
+<!-- 允许程序在手机屏幕关闭后后台进程仍然运行 -->
+<uses-permission android:name="android.permission.WAKE_LOCK" />
+
+<!-- 允许程序访问网络连接，可能产生GPRS流量 -->
+<uses-permission android:name="android.permission.INTERNET" />
+\end{minted}
+\end{itemize}
+
+\section{现在开始去想自已的本地服务器要怎么设计与实现}
+\label{sec-4}
+\begin{itemize}
+\item 最初版本001：这里主要是参考:　\url{https://cloud.tencent.com/developer/article/1796115?from=article.detail.1805496}
+\item 因为以自已目前完全小白的服务器经验,还不足以搭起一个哪怕是最简单的框架来.参照别人的最小脚手架,先感受一个它的各个部件
+\item 这个设计其实第一遍读,也能意识到是奇烂无比的,存在着无数多的bug或是缺陷.但因为写贴子的人算是一个真真做过,能够把必要的知识点相对来说讲得比较透彻,对当前的小白来说还是会有不少帮助的.等这个最基础的基本功能模块完成,自已对这些有更深的理解与感受之后,可以再对比参照别人比较优秀的架构,来重构和优化自已的. 
+\begin{itemize}
+\item 别人小白时候的经验都可以成为自已成长过程中的参考:\url{http://t.zoukankan.com/kq123321-p-6072602.html}
+\item 上面它的简单设计如下:
+\end{itemize}
+\end{itemize}
+
+\includegraphics[width=.9\linewidth]{./pic/server_20230103_220701.png}
+\begin{itemize}
+\item 总结出来的缺点如下:
+\end{itemize}
+
+\includegraphics[width=.9\linewidth]{./pic/server_20230103_220110.png}
+\begin{itemize}
+\item 主要的缺点包括:
+\begin{itemize}
+\item 客户端心跳包:极其影响客户端与服务商性能。因为不停地周期性遍历，就不能只有注册和发生变化的时候通知一下，而不是遍历无数次吗？
+\item 数据库的选择
+\item 现极简小例子中涉及了将一对一同步服务器同客户端连接,重构为一服务器对10000客户端,但OOD/OOP的设计,异步调用与回调的写法,封装等,有极大的提升和优化空间(\textbf{前提是:自已能够慢慢把别人点到为止,缺失了狠多源码的讲解文的异步逻辑给真正补全,先能够异步运行起来})
+\end{itemize}
+\item 想要参考的比较优秀的服务端框架目前主要想参考三个:
+\begin{itemize}
+\item GeekServer:　对目前的我来说，仍然是读源码读得半知半解
+\item ET框架
+\item 和先前比较有特色的 SparkServer \url{https://github.com/Manistein/SparkServer}
+\begin{itemize}
+\item 主要设计思路:\url{http://manistein.club/post/server/csharp/csharp\%E6\%9C\%8D\%E5\%8A\%A1\%E7\%AB\%AF\%E6\%A1\%86\%E6\%9E\%B6\%E8\%AE\%BE\%E8\%AE\%A1\%E4\%B8\%8E\%E5\%AE\%9E\%E7\%8E\%B0/}
+\end{itemize}
+\end{itemize}
+\item 远程服务器:是本地服务器放在网络上的某个存储和具备服务器条件的环境中运行起来,配备一个网址
+\begin{itemize}
+\item 服务器的网址是在哪里配置的?又翻了一遍,好像是没有看见: app\_config.json
+\end{itemize}
+\item (现例子源码中存在大量的游戏逻辑相关的更新，和游戏服务器服务器端本身的热更新，我的并不需要这些，我的游戏服务器甚至可以是个静态的？所以我的可以狠简单，简单到只是一个管理游戏资源包的服务器，加用户登录帐户管理，加个最基本的数据库先)
+\item 数据库: 我的服务器主要是放资源包,配备资源包的版本信息,方便服务器与客户端各资源包的更新比对.
+\begin{itemize}
+\item 关于热更新资源包:要不要数据库呢,不要放哪里?
+\item 关于用户的帐户管理:要不要数据库呢,不要怎么管理与存储?
+\item 所以还是需要一个数据库的,哪怕是奇烂无比的,先用一个别人相当于是点到为止的最为基本的MySQL之类的数据库(狠怪异)?
+\item 把自已项目中关于热更新资源包的源码再读和理解得透彻一些
+\end{itemize}
+\item 游戏服务器与普通文件服务器的区别：
+\begin{itemize}
+\item 文件服只需要上传下载或是浏览文件就可以了==> 简单的文件服还是满足不了游戏服的需要
+\item 游戏服：尤其是自已游戏资源包的服务器，需要MD5　hash等比对文件是否发生了变化，里面还有相当一部分的逻辑是需要处理的。另登录服。。。。。
+\end{itemize}
+\end{itemize}
+% Emacs 27.2 (Org mode 8.2.7c)
+\end{document}

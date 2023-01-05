@@ -2,17 +2,20 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-
 namespace DW.Server.App {
     class Program {
 
 // 选用一种查找比较快速的数据结构:字典 服务器就必须要有个[数据结构]用来存放(维护管理)所有连接着它的客户端
+// 可是问题是：这不是多纯种不案例的字典吗？他又没有用多纯种案例类型的ConcurrentDictionary之类的？也没有上锁？        
         static Dictionary<Socket, ClientState> clients = new Dictionary<Socket, ClientState>();
+
+// 用Select来改写服务器端.         
+        // checkRead列表
+        static List<Socket> checkRead = new List<Socket>();
         
         // public Socket BeginAccept (IAsyncResult asyncResult) { }
         // public Socket EndAccept (IAsyncResult asyncResult) { }
-// 服务器如果接收到了客户端的连接,并且已经连接成功了,这个回调函数里面应当做些什么呢?
-        public static void AcceptCallback(IAsyncResult ar) {
+        public static void AcceptCallback(IAsyncResult ar) { // 服务器如果接收到了客户端的连接,并且已经连接成功了,这个回调函数里面应当做些什么呢?
             try {
                 Console.WriteLine("接收客户端连接成功 ");
                 Socket listenfd = ar.AsyncState as Socket; // 第一应该是接收它socket的一个状态
@@ -45,8 +48,8 @@ namespace DW.Server.App {
                     return;
                 }
                 string readStr = System.Text.Encoding.Default.GetString(state .readBuff, 0, count);
-				Console.WriteLine("接收客户端数据成功: " + readStr);
-				byte[] sendBytes = System.Text.Encoding.Default.GetBytes(readStr);
+                Console.WriteLine("接收客户端数据成功: " + readStr);
+                byte[] sendBytes = System.Text.Encoding.Default.GetBytes(readStr);
                 clientfd.Send(sendBytes); // <<<<<<<<<<<<<<<<<<<< 
                 clientfd.BeginReceive(state.readBuff, 0, count, SocketFlags.None, ReceiveCallback, state);
             }
@@ -54,8 +57,7 @@ namespace DW.Server.App {
                 Console.WriteLine("接收客户端消息失败: " + e.Message);
             }
         }
-        //public Socket EndAccept (IAsyncResult asyncResult) {
-        //}
+        //public Socket EndAccept (IAsyncResult asyncResult) { }
 // 服务器向所有客户端广播消息：不完整的代码 片段
 // 这个功能: 客户端 还没实现        
         public void broadcastMsgs(byte[] sendBytes) { // 遍历服务器所维护的所有连接着的客户端,拿到客户端信道索引,异步发消息
@@ -71,50 +73,107 @@ namespace DW.Server.App {
             state.socket = clientfd ;
             clients.Add(clientfd, state);
         }
+        public static bool ReadClientfd(Socket clientfd) {
+            ClientState state = clients[clientfd];
+            // 接收字节
+            int count = 0;
+            try {
+                count = clientfd.Receive(state.readBuff);
+            }
+            catch (SocketException e) {
+                clientfd.Close();
+                clients.Remove(clientfd);
+                Console.WriteLine("异常报告: "+ e.Message);
+                return false;
+            }
+            // 如果客户端强行下线
+            if (count <= 0) {
+                clientfd.Close();
+                clients.Remove(clientfd);
+                Console.WriteLine("客户端　socket 已关闭");
+                return false;
+            }
+            // 数据分发
+            string recvStr = Encoding.Default.GetString(state.readBuff, 0, count);
+            Console.WriteLine("Receive :　"+　recvStr );
+            // 客户端的IP地址
+            string sendStr = clientfd.RemoteEndPoint.ToString() + ":" + recvStr;
+            byte[] sendBytes = Encoding.Default.GetBytes(sendStr);
+            foreach (ClientState item in clients.Values ) {　// 广播
+                item.socket.Send(sendBytes);
+            }
+            return true;
+        }
+        
         static void Main(string [] args) {
             Socket listenfd = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
             IPAddress ipAdr = IPAddress.Parse("127.0.0.1");
             IPEndPoint iPEP = new IPEndPoint(ipAdr, 5000);
             listenfd.Bind(iPEP);
- 
             listenfd.Listen(0);
             Console.WriteLine("服务器启动完毕");
-// 下面是同步的写法,全部改写成是异步的写法,因为一台服务器可能要同时连10000台客户端    
+
             while (true) {
-                // Accpt
-                // Socket Client = listenfd.Accept(); // <<<<<<<<<<<<<<<<<<<< 改写成是异步模式: BeginAccept + EndAccept
-                listenfd.BeginAccept(AcceptCallback, listenfd);
-                
-                // Console.WriteLine("[服务器]Accpet"); // 这里会打印千千万万遍
-                // Receive
-                // byte[] readBuff = new byte[1024]; // 这个长度只是从网络看见一般写这么长,我不需要这么长
-                // int count = Client.Receive(readBuff); // <<<<<<<<<<<<<<<<<<<< 改写为异步的方法
-                
-                // Console.WriteLine(" count = " + count);
-                // string readStr = System.Text.Encoding.Default.GetString(readBuff, 0, count);
-                // Console.WriteLine("[服务器接收的消息:]" + readStr);
-                // 发消息给客户端
-                // byte[] sendBytes = System.Text.Encoding.Default.GetBytes(readStr);
-                // Client.Send(sendBytes); // <<<<<<<<<<<<<<<<<<<< 改写为异步的方法
+                checkRead.Clear();
+// 首先,将监听socket(listenfd)和客户端socket(clients列表)添加到待检测的checkRead列表中.
+// 那么为什么要将这2种socket都加入到checkRead中呢?
+// 因为checkread只是检查socket是否可读,不管你什么情况下的可读,如果你是要连接的话,那么就调用连接的方法,如果不是,那就调用读取信息的方法.                
+                checkRead.Add(listenfd);
+                // 遍历所有已连接的客户端
+                foreach (var item in clients.Values) {
+                    checkRead.Add(item.socket); 
+                }
+                // 开始select
+                Socket.Select(checkRead, null, null, 1); // 其实要将程序中的等待时间设置为1s,也就是说程序”卡”在这里1s,在这1s当中,没有任何消息过来,那么清空该列表.
+                // 最后开始遍历所有有可读消息的socket,如果时请求连接的,就调用调用请求连接的方法:ReadListenfd,如果是有消息发过来,那么就调用接收消息的方法:ReadClientfd.
+                foreach (var item in checkRead){
+                    if (item == listenfd) {
+                        ReadListenfd(item);
+                    } else  {
+                        ReadClientfd(item);
+                    }
+                }
+                // 那么这里并没有使用到CheckWrite和CheckError的列表参数,放心,后面会用到的因为这里发送消息直接放在ReadClientfd,后续做服务器的时候会改写的.
             }
-//// 异步模式的服务器
-//            while (true) {
-//                // 有客户端请求连接
-//                if (listenfd.Poll(, SelectMode.SelectRead)) {
-//                    ReadListenfd(listenfd);
-//                }
-//                // 遍历所有客户端,用来分发消息
-//                foreach (var item in clients .Values) {
-//                    Socket clientfd = item.socket;
-//                    //如果客户端有消息
-//                    if (clientfd.Poll(, SelectMode.SelectRead)) {
-//                        if (!ReadClientfd(clientfd)) 
-//                            break;
-//                    }
-//                    System.Threading.Thread.Sleep();
-//                }
-//            }
+// // 异步模式的服务器
+//             while (true) {
+//                 // 有客户端请求连接
+// // 要给就是Poll中的等待时间为0,如果设置的时间过高,那么服务器就没办法及时处理消息,
+//                 // 当客户端连接进来比较多的时候,每一个客户端都需要等待一段时间,那么可能会造成网络拥堵,最后服务器死机.                
+//                 if (listenfd.Poll(0, SelectMode.SelectRead)) {
+//                     ReadListenfd(listenfd);
+//                 }
+//                 // 遍历所有客户端,用来分发消息
+//                 foreach (var item in clients.Values) {
+//                     Socket clientfd = item.socket;
+//                     //如果客户端有消息
+//                     if (clientfd.Poll(0, SelectMode.SelectRead)) {
+//                         if (!ReadClientfd(clientfd)) // 当返回false的时候就代表里面的count为0 ,即断开连接,断开之后,同样会在字典中移除该客户端的缓存
+//                             // BUGGY BUGGY BUGGY BUG BUG BUG
+//                             break; // 为什么移除了一个断线的客户端却要break掉遍历,那是因为当遍历的字典发生改变之后,遍历会报错.
+//                     }
+//                     System.Threading.Thread.Sleep(1); // 为什么会给程序1毫秒的暂停,这样做是为了避免程序卡住,给它一个短暂的停歇.
+//                 }
+//             }
+
+            // // 下面是同步的写法,全部改写成是异步的写法,因为一台服务器可能要同时连10000台客户端    
+//             while (true) {
+//                 // Accpt
+//                 // Socket Client = listenfd.Accept(); // <<<<<<<<<<<<<<<<<<<< 改写成是异步模式: BeginAccept + EndAccept
+//                 listenfd.BeginAccept(AcceptCallback, listenfd);
+                
+//                 // Console.WriteLine("[服务器]Accpet"); // 这里会打印千千万万遍
+//                 // Receive
+//                 // byte[] readBuff = new byte[1024]; // 这个长度只是从网络看见一般写这么长,我不需要这么长
+//                 // int count = Client.Receive(readBuff); // <<<<<<<<<<<<<<<<<<<< 改写为异步的方法
+                
+//                 // Console.WriteLine(" count = " + count);
+//                 // string readStr = System.Text.Encoding.Default.GetString(readBuff, 0, count);
+//                 // Console.WriteLine("[服务器接收的消息:]" + readStr);
+//                 // 发消息给客户端
+//                 // byte[] sendBytes = System.Text.Encoding.Default.GetBytes(readStr);
+//                 // Client.Send(sendBytes); // <<<<<<<<<<<<<<<<<<<< 改写为异步的方法
+//             }
         }
     }
 }

@@ -1,4 +1,4 @@
-% Created 2023-01-04 Wed 09:01
+% Created 2023-01-06 Fri 15:33
 \documentclass[9pt, b5paper]{article}
 \usepackage{xeCJK}
 \usepackage{minted}
@@ -81,8 +81,29 @@
 
 \section{现在开始去想自已的本地服务器要怎么设计与实现}
 \label{sec-4}
+
 \subsection{{\bfseries\sffamily TODO} }
 \label{sec-4-1}
+\subsubsection{服务器基本功能（目前只考虑最基本两种）}
+\label{sec-4-1-1}
+\begin{itemize}
+\item 热更新客户端资源包(程序包+资源包):相当于是一个最普通的文件服务器。需要考虑文件传输协议，最大上载文件大小，上下传耗时等
+\item 登录服＋数据库（登录帐户管理＋玩家数据游戏保存）：登录登出帐户管理；玩家数据管理（游戏累计时间，排行榜什么的）；玩家游戏保存
+\item 保证客户端的热更新。服务器的热更新可有可无，不强求（参考利用现有的框架，能够实现更好。暂时没实现也无所谓）
+\item 因为现在的游戏还狠简单，不涉及任何相对中大型多玩家在线游戏实时数据与进展等，目前只考虑最基本的功能
+\end{itemize}
+\subsubsection{基本实现方式}
+\label{sec-4-1-2}
+\begin{itemize}
+\item 我认为自己完全有能力能够通过在自己的服务器项目中模仿、学习和消化吃透这样一个ET框架。
+\item 觉得对自己来说比较有效的步验是：在能够运行原框架样例的基础上，将原框架用到自己的服务器项目中来，先通过去掉狠多自己用不上的网游服务器相关的功能模块（比如游戏过程中的实时消息交换等）来细化消化服务器的网络连接与数据库连接。等自己项目做完以后可以再扩展这些后来多人网游戏所需要的游戏逻辑热更新等
+\item 现在就是感觉框架，难点儿的GeekServer，简单平民大众化一点儿的ET感觉都能看得懂，也能狠好地运行出来。但因为双端过多的项目，每端都有十个左右，往往为找一个文件的具体物理地址找半天，仍然是没能明白细节化的配置：比如，想要实现的数据库的具体连接步骤过程，加载初始化，关机时的过程等，仍然需要花很多的时间去整理
+\item 不明白，我是把它的现存的.dll直接拿来用，就是不能作任何修改，可能本质上并不符合自己的需求，或是如同先前客户端使用ILRuntime来实现游戏绝大部分逻辑一样，把框架里所有相关的源码直接搬过去，来作适合自己服务器的个性化的配置
+\item 我参考的现有的框架：感觉更多的是游戏逻辑模型都放在服务器的大型多人网络游戏的热更新框架，并不适合自己的小型游戏（自己想要实现的两条功能其实狠简单，只是小白不知道从哪里下口）
+\end{itemize}
+
+\subsubsection{现存问题}
+\label{sec-4-1-3}
 \begin{itemize}
 \item 客户端获取资源包是使用的http获取.现小服是用TCP管道,是只用TCP就可以了呢,还是要改写HTTP去用TCP,还是说两个都保留呢?
 \item 另则,网络交互过程中所能传递的文件大小:我的热更新资源包可以无限大吗?能顺利上传下载服务器吗? 这些细节待理清楚
@@ -95,8 +116,31 @@
 \end{itemize}
 \item 客户端热更新程序包与资源包是文件,文件的存储与数据库有关系吗? 数据库可以管理一批单个文件吗?还是说只能管理数据表格呢?如果数据库不能管理文件,这个服务器又该如何设计?
 \end{itemize}
-\subsection{general}
+\subsection{基本思路}
 \label{sec-4-2}
+\subsubsection{资源包服务器与数据库}
+\label{sec-4-2-1}
+\begin{itemize}
+\item 客户端热更新程序包与资源包是文件,文件的存储与数据库有关系吗? 数据库可以管理一批单个文件吗?还是说只能管理数据表格呢?如果数据库不能管理文件,这个服务器又该如何设计?
+\item 可以参考前公司SquarePanda里服务器的相关设置来进一步去追踪,是否每个不同的网址portal都有它自已绑定的数据库? 当时公司安卓端是使用parse push服务来进行消息推送的
+\begin{minted}[fontsize=\scriptsize,linenos=false]{java}
+  public static final String PLAYGROUND_URL = "https://squarepanda.com/";
+  // For Parent playground
+  public static final String PARENT_PLAYGROUND_URL_DEV = "https://playground-dev.squarepanda.com/";
+  public static final String PARENT_PLAYGROUND_URL_QA = "https://playground-qa.squarepanda.com/";
+  public static final String PARENT_PLAYGROUND_URL_PRODUCTION = "https://playground.squarepanda.com/";
+  // For Teacher playground
+  public static final String TEACHER_PLAYGROUND_URL_DEV = "https://teacher-dev.squarepanda.com/";
+  public static final String TEACHER_PLAYGROUND_URL_QA = "https://teacher-qa.squarepanda.com/";
+  public static final String TEACHER_PLAYGROUND_URL_PRODUCTION = "https://teacher.squarepanda.com/";
+  // https://support.squarepanda.com
+  // https://squarepanda.com/pages/faqs
+  public static final String HELP_URL = "https://support.squarepanda.com/";
+\end{minted}
+\end{itemize}
+
+\subsection{general}
+\label{sec-4-3}
 \begin{itemize}
 \item 最初版本001：这里主要是参考:　\url{https://cloud.tencent.com/developer/article/1796115?from=article.detail.1805496}
 \item 因为以自已目前完全小白的服务器经验,还不足以搭起一个哪怕是最简单的框架来.参照别人的最小脚手架,先感受一个它的各个部件

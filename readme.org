@@ -38,7 +38,21 @@
   #+END_SRC
 
 * 现在开始去想自已的本地服务器要怎么设计与实现
+
 ** TODO
+*** 服务器基本功能（目前只考虑最基本两种）
+- 热更新客户端资源包(程序包+资源包):相当于是一个最普通的文件服务器。需要考虑文件传输协议，最大上载文件大小，上下传耗时等
+- 登录服＋数据库（登录帐户管理＋玩家数据游戏保存）：登录登出帐户管理；玩家数据管理（游戏累计时间，排行榜什么的）；玩家游戏保存
+- 保证客户端的热更新。服务器的热更新可有可无，不强求（参考利用现有的框架，能够实现更好。暂时没实现也无所谓）
+- 因为现在的游戏还狠简单，不涉及任何相对中大型多玩家在线游戏实时数据与进展等，目前只考虑最基本的功能  
+*** 基本实现方式
+- 我认为自己完全有能力能够通过在自己的服务器项目中模仿、学习和消化吃透这样一个ET框架。
+- 觉得对自己来说比较有效的步验是：在能够运行原框架样例的基础上，将原框架用到自己的服务器项目中来，先通过去掉狠多自己用不上的网游服务器相关的功能模块（比如游戏过程中的实时消息交换等）来细化消化服务器的网络连接与数据库连接。等自己项目做完以后可以再扩展这些后来多人网游戏所需要的游戏逻辑热更新等
+- 现在就是感觉框架，难点儿的GeekServer，简单平民大众化一点儿的ET感觉都能看得懂，也能狠好地运行出来。但因为双端过多的项目，每端都有十个左右，往往为找一个文件的具体物理地址找半天，仍然是没能明白细节化的配置：比如，想要实现的数据库的具体连接步骤过程，加载初始化，关机时的过程等，仍然需要花很多的时间去整理
+- 不明白，我是把它的现存的.dll直接拿来用，就是不能作任何修改，可能本质上并不符合自己的需求，或是如同先前客户端使用ILRuntime来实现游戏绝大部分逻辑一样，把框架里所有相关的源码直接搬过去，来作适合自己服务器的个性化的配置
+- 我参考的现有的框架：感觉更多的是游戏逻辑模型都放在服务器的大型多人网络游戏的热更新框架，并不适合自己的小型游戏（自己想要实现的两条功能其实狠简单，只是小白不知道从哪里下口）
+
+*** 现存问题  
 - 客户端获取资源包是使用的http获取.现小服是用TCP管道,是只用TCP就可以了呢,还是要改写HTTP去用TCP,还是说两个都保留呢?
 - 另则,网络交互过程中所能传递的文件大小:我的热更新资源包可以无限大吗?能顺利上传下载服务器吗? 这些细节待理清楚
 - 另则,为节省带宽流量性能,上传下载数据是可以压缩的.必要吗?不必要吗?必要时如何设计与实现?
@@ -47,6 +61,25 @@
   - 回想一下先前个性化安卓系统中神奇的用户数据应用:怎么才能做到当实例化一个用户数据new ProfileData()/new UserData()的时候,自动关联到安卓系统数据库应用application 中去(就是安卓系统的顶层应用与底层数据库应用的自动关联,或是如何实现了自动关联, *IPC AIDL安卓进程间通信的进程间服务通过实现进程中公认接口从而实现了进程间客户端服务与远程服务端的自动绑定*)?这些先前工作中不曾真正涉足深入理解的地方,现在虽然再没有任何索引,但仍然可以再查些资料,回刍一下这些设计,再思考一下如何实现? UsreProfile,和ProfileData是两个不同的安卓应用
   - 当然,上面的思路也是因为有个个性化的安卓系统(可以在不同应用不同进程间实现这些跨进程服务绑定).当我的游戏只是安卓系统上的一个应用(只有一个进程,现涉及更多的是手机平台客户端与远程服务器,连接交互以及连接数据库,上传与下载数据),与上面的安卓系统个性化配置差别在哪里?怎么设计实现? 还是有狠多本质上的不同的 
 - 客户端热更新程序包与资源包是文件,文件的存储与数据库有关系吗? 数据库可以管理一批单个文件吗?还是说只能管理数据表格呢?如果数据库不能管理文件,这个服务器又该如何设计?
+** 基本思路
+*** 资源包服务器与数据库
+- 客户端热更新程序包与资源包是文件,文件的存储与数据库有关系吗? 数据库可以管理一批单个文件吗?还是说只能管理数据表格呢?如果数据库不能管理文件,这个服务器又该如何设计?
+- 可以参考前公司SquarePanda里服务器的相关设置来进一步去追踪,是否每个不同的网址portal都有它自已绑定的数据库? 当时公司安卓端是使用parse push服务来进行消息推送的
+  #+BEGIN_SRC java
+    public static final String PLAYGROUND_URL = "https://squarepanda.com/";
+    // For Parent playground
+    public static final String PARENT_PLAYGROUND_URL_DEV = "https://playground-dev.squarepanda.com/";
+    public static final String PARENT_PLAYGROUND_URL_QA = "https://playground-qa.squarepanda.com/";
+    public static final String PARENT_PLAYGROUND_URL_PRODUCTION = "https://playground.squarepanda.com/";
+    // For Teacher playground
+    public static final String TEACHER_PLAYGROUND_URL_DEV = "https://teacher-dev.squarepanda.com/";
+    public static final String TEACHER_PLAYGROUND_URL_QA = "https://teacher-qa.squarepanda.com/";
+    public static final String TEACHER_PLAYGROUND_URL_PRODUCTION = "https://teacher.squarepanda.com/";
+    // https://support.squarepanda.com
+    // https://squarepanda.com/pages/faqs
+    public static final String HELP_URL = "https://support.squarepanda.com/";
+  #+END_SRC
+
 ** general
 - 最初版本001：这里主要是参考:　https://cloud.tencent.com/developer/article/1796115?from=article.detail.1805496
 - 因为以自已目前完全小白的服务器经验,还不足以搭起一个哪怕是最简单的框架来.参照别人的最小脚手架,先感受一个它的各个部件

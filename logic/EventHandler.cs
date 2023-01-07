@@ -13,12 +13,12 @@ namespace MyServer {
         // 在客户端异常时,我们会调用这个方法,那么客户端,又如何得知,此时应该处理掉线的用户呢?
         // 我们在调用OnDisconnect的时候,广播一个Leave协议,告诉所有的客户端,某个客户端下线了.
         public static void OnDisConnect(ClientState c) {
-            Console.WriteLine("Disconnect");
-            string desc = c.socket.RemoteEndPoint.ToString();
-            string sendStr = "Leave|" + desc + ",";
-            foreach (ClientState cs in Program.clients.Values) {
-                Program.Send(cs, sendStr);
-            }
+            //Console.WriteLine("Disconnect");
+            //string desc = c.socket.RemoteEndPoint.ToString();
+            //string sendStr = "Leave|" + desc + ",";
+            //foreach (ClientState cs in Program.clients.Values) {
+            //    Program.Send(cs, sendStr);
+            //}
         }
 
         public static void OnTimer() {

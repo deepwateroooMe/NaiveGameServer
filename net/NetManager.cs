@@ -20,6 +20,16 @@ namespace MyServer.net {
         // select 的检查列表 select 挨个便利socket,筛选出符合规范的
         static List<Socket> checkRead = new List<Socket>();
 
+        //(心跳)Ping的时间间隔
+        public static long PingInterval = 30;
+
+        // 获取时间戳
+        public static long GetTimeStamp() {
+            // 从1970年到如今的时间,数据类型为long型数据
+            TimeSpan ts = DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, 0);
+            return Convert.ToInt64(ts.TotalSeconds);
+        }
+        
         public static void StartLoop(int ListenPort) {
             // 实例化socket
             listenfd = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -166,6 +176,13 @@ namespace MyServer.net {
             MethodInfo mei = typeof(MyServer.EventHandler).GetMethod("OnTimer");
             object[] ob = { };
             mei.Invoke(null, ob);
+        }
+        
+// 我们将客户端的发送代码注释掉了,所以我们也要单独写一个方法,来广播消息: // <<<<<<<<<<<<<<<<<<<< 
+// 发送
+        public static void Send(ClientState cs, string sendStr) {
+            byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
+            cs.socket.Send(sendBytes);
         }
     }
 }

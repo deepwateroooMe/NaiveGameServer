@@ -116,7 +116,7 @@ namespace MyServer.net {
         }
 	}
 
-    public class MsgMove:MsgBase {
+    public class MsgMove: MsgBase {
         public MsgMove() {protoName = "MsgMove";}
 
         public int x = 0;
@@ -124,7 +124,7 @@ namespace MyServer.net {
         public int z = 0;
     }
 
-    public class MsgAttack:MsgBase {
+    public class MsgAttack: MsgBase {
         public MsgAttack() {protoName = "MsgAttack";}
 
         public string desc = "127.0.0.1:6543";

@@ -11,6 +11,10 @@ namespace MyServer.net {
 
         public Socket socket;
         public ByteArray readBuff = new ByteArray();
+
+        //玩家数据后面添加
+        //最后一次ping的时间
+        public long lastPingTime = 0;
         
         // public Socket socket;
         // public byte[] readBuff = new byte[1024];

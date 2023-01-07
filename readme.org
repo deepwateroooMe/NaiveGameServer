@@ -40,7 +40,7 @@
 * 现在开始去想自已的本地服务器要怎么设计与实现
 
 ** TODO
-*** 服务器基本功能（目前只考虑最基本两种）lp
+*** 服务器基本功能（目前只考虑最基本两种）
 - 热更新客户端资源包(程序包+资源包):相当于是一个最普通的文件服务器。需要考虑文件传输协议，最大上载文件大小，上下传耗时等
 - 登录服＋数据库（登录帐户管理＋玩家数据游戏保存）：登录登出帐户管理；玩家数据管理（游戏累计时间，排行榜什么的）；玩家游戏保存
 - 保证客户端的热更新。服务器的热更新可有可无，不强求（参考利用现有的框架，能够实现更好。暂时没实现也无所谓）
@@ -114,3 +114,41 @@
 - 游戏服务器与普通文件服务器的区别：
   - 文件服只需要上传下载或是浏览文件就可以了==> 简单的文件服还是满足不了游戏服的需要
   - 游戏服：尤其是自已游戏资源包的服务器，需要MD5　hash等比对文件是否发生了变化，里面还有相当一部分的逻辑是需要处理的。另登录服。。。。。
+* 配置visual studio 2022 Remote Debugger的几个参数命令
+  #+BEGIN_SRC shell
+New-NetFirewallRule -DisplayName "msvsmon" -Direction Inbound -Program "Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\Remote Debugger\x64\msvsmon.exe" -LocalPort 8080 -Protocol TCP -Action Allow
+
+New-NetFirewallRule -DisplayName "msvsmon" -Direction Inbound -Program "Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\Remote Debugger\x64\msvsmon.exe" -LocalPort 8080 -Protocol TCP -Authentication Required -Action Allow
+
+New-NetFirewallRule -DisplayName "Me" -Direction Outbound -Program "Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\Remote Debugger\x64\msvsmon.exe" -LocalPort 8080 -Protocol TCP -Action Allow
+  #+END_SRC
+* HttpListener 文件服务器
+- v0.001版源参考:https://blog.csdn.net/yang_aq/article/details/116032573?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-0-116032573-blog-119875873.pc_relevant_3mothn_strategy_recovery&spm=1001.2101.3001.4242.1&utm_relevant_index=2
+- 客户端向服务器请求资源包文件更新，视用户玩家必须登录与否来确定。若所有游戏强制开启登录模式才能玩，那么服务器一定需要身份验证，只有游戏的玩家才可以自动检测请求拿到最新的资源包文件。身份验证登录Session + Cookie模式。若玩家不强制登录，那么服务器端也就不需要身份验证直接下载（可能会经受恶意网络攻击，因为别人可以生成死循代码把脆弱的服务器给搞死了。。。。。）
+- 针对上面的想到的恶意网络攻击，服务器端可以需要一些基本的自卫模式或是网络申请过滤，同一用户的重复申请，或是某组用户的重复循环周期性申请等。。。。。
+- 
+- 
+- 
+- 它的性能瓶颈等，暂时都还没有考虑。它是一个包装的轻量版的什么网络服务器。可以做到轻量，也就不可避免地意味着：在努力轻量的过程中，可能正常相对重量原始包装中的某些方法被丢掉了，没有实现，以至于某些情境下，使用这个轻量版来开发的程序员，如我，会踩到各种坑，要自己解决，也是一个学习的过程。某个踩坑纪录可以参考：https://tttang.com/archive/1451/
+- 上面的，太简单幼稚到感觉可耻的地步，再搜索一下好点儿的思路和异步等提前上下传承载量低延迟性能的相关的好的解决办法  
+- 那么考虑文件上下传的需求：可能的场景，从本地文件（提供文件名），上传到服务器（提供服务器URI地址），如何上传？
+- 那么考虑文件上下传的需求：可能的场景，从本地文件在内存中的内存流（MemoryStream），上传到服务器（提供服务器URI地址），如何上传？等
+- 可以参考：https://www.cnblogs.com/SavionZhang/p/11419532.html  使用 *HttpWebRequest*
+- 接上面链接： GUID  方法的实现参考  https://blog.csdn.net/pinebud55/article/details/51526454?spm=1001.2101.3001.6650.3&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-3-51526454-blog-93522065.pc_relevant_3mothn_strategy_recovery&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-3-51526454-blog-93522065.pc_relevant_3mothn_strategy_recovery&utm_relevant_index=4
+- *HttpServer:* 一个仍然简单粗糙的封装 https://blog.csdn.net/hong2511/article/details/81777060?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-1-81777060-blog-119875873.pc_relevant_3mothn_strategy_recovery&spm=1001.2101.3001.4242.2&utm_relevant_index=3
+- 看见一个像是 *专门弄服务器端的人写的库和封装: 可以去学习了解一下,有个库和项目,两个工程*:  https://blog.csdn.net/moasp/article/details/120080044?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-5-120080044-blog-119875873.pc_relevant_3mothn_strategy_recovery&spm=1001.2101.3001.4242.4&utm_relevant_index=7
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+
+
+
+
+
+

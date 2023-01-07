@@ -14,7 +14,7 @@ namespace MyServer {
 // 最开始，也没什么人玩儿我写的游戏，不用对服务器作负载压力测试什么的，先把它运行起来，具备第一个游戏热更新最基本的逻辑就可以了
 // 这么看，文件服务器可以狠简单，仍有点儿小家子气，可是我的游戏也不是大型商业网络游戏。。。。。
 // 将来弄个服务器可以热更新的热更新服务器比较好    
-    class Program {
+    class Program { // 这个0.001的版本,程序逻辑真简单
 
         private static int count = 0;
         static HttpListener httpobj;
@@ -23,17 +23,48 @@ namespace MyServer {
             // 提供一个简单的、可通过编程方式控制的 HTTP 协议侦听器。此类不能被继承。
             httpobj = new HttpListener();
             // 定义url及端口号，通常设置为配置文件
-            httpobj.Prefixes.Add("http://127.0.0.1:8080/");
+// <<<<<<<<<<<<<<<<<<<<             这是别人最原始的设计: 就是说,这个文件服务器只读json字符串?那我别的文件类型呢 ?
+            // httpobj.Prefixes.Add("http://127.0.0.1:8080/myJson/"); // 这是别人最原始的设计: 就是说,这个文件服务器只读json字符串?那我别的文件类型呢 ?
+            // httpobj.Prefixes.Add("http://127.0.0.1:8080/");
+            // httpobj.Prefixes.Add("http://localhsot:8080/"); // 上面这两个都不行
+// Prefixes: 意思大致是说,可以区分几个不同的domain ?            
+            httpobj.Prefixes.Add("http://+:80/myJson/"); // 这个改成＋就可以了，可是不明白是为什么！！！
+            httpobj.AuthenticationSchemes = AuthenticationSchemes.Anonymous; // 开启不登录模式吗？
             // 启动监听器
-            httpobj.Start(); // 这里抛了个拒绝访问的异常，需要解决一下
+            httpobj.Start(); // States: Start Stop Abort Close Dispose
+// 这个初始化 完成的工作包括:
+            // V2 initialization sequence: 这里面的源码没法读到
+            // 1. Create server session
+            // 2. Create url group
+            // 3. Create request queue - Done in Start()
+            // 4. Add urls to url group - Done in Start()
+            // 5. Attach request queue to url group - Done in Start()
             
-            // 异步监听客户端请求，当客户端的网络请求到来时会自动执行Result委托
-            // 该委托没有返回值，有一个IAsyncResult接口的参数，可通过该参数获取context对象
-            httpobj.BeginGetContext(Result, null);
-            Console.WriteLine($"服务端初始化完毕，正在等待客户端请求,时间：{DateTime.Now.ToString()}\r\n");
-            Console.ReadKey();
+// // V1: 这里先行假设： 它有且仅有一个客户端，若是有10000个客户端，要肿么样呢  ？
+//             // 异步监听客户端请求，当客户端的网络请求到来时会自动执行Result委托
+//             // 该委托没有返回值，有一个IAsyncResult接口的参数，可通过该参数获取context对象
+//             httpobj.BeginGetContext(Result, null);
+//             Console.WriteLine($"服务端初始化完毕，正在等待客户端请求,时间：{DateTime.Now.ToString()}\r\n");
+//             Console.ReadKey();
+
+// V2: 
+            new Thread(new ThreadStart(delegate { // 这里最重要的参考是异步: 因为要通过异步才能实现1:10000的连接
+                        while (true) {
+                            HttpListenerContext httpListenerContext = httpobj.GetContext();
+                            httpListenerContext.Response.StatusCode = 200; // 直接返回成功: 写个回执到网页上去了
+                            using (StreamWriter writer = new StreamWriter(httpListenerContext.Response.OutputStream)) {
+                                writer.WriteLine("<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/><title>测试服务器</title></head><body>");
+                                writer.WriteLine("<div style=\"height:20px;color:blue;text-align:center;\"><p> hello</p></div>");
+                                writer.WriteLine("<ul>");
+                                writer.WriteLine("</ul>");
+                                writer.WriteLine("</body></html>");
+                            }
+                        }
+                    })).Start();
+// 如果你运用的好，举一反三的话，这样一个简单的类可能会收到意想不到的效果，但是由于HttpListener这个类对底层的完美封装(我不认为它完美)，导致对协议的控制失去灵活性，因此我想大型服务器程序里肯定不会用这个类去实现。
+// 因此如果必要的话，自己用Tcp协议再去封装一个类，以便更好的控制服务运行状态。// <<<<<<<<<<<<<<<<<<<< 这个建议,自己倒是可以参考一下,去了解和探求解决思路与方案            
         }
- 
+
         private static void Result(IAsyncResult ar) {
             // 当接收到请求后程序流会走到这里
             // 继续异步监听
@@ -57,15 +88,15 @@ namespace MyServer {
                 // 处理客户端发送的请求并返回处理信息
                 returnObj = HandleRequest(request, response);
             } else {
-                returnObj = $"不是post请求或者传过来的数据为空";
+                returnObj = $"不是post请求 或者 传过来的数据为空";
             }
        
             var returnByteArr = Encoding.UTF8.GetBytes(returnObj);// 设置客户端返回信息的编码
-            var returnJson = Encoding.UTF8.GetBytes(GetJsonFile("../../../BerthEdges.json"));// 设置客户端返回信息的编码
+            var returnJson = Encoding.UTF8.GetBytes(GetJsonFile("../../../BerthEdges.json"));// 设置客户端返回信息的编码 byte[]
             try {  
-                using (var stream = response.OutputStream) {
+                using (var stream = response.OutputStream) { // Stream
                     // 把处理信息返回到客户端
-                    stream.Write(returnJson, 0, returnJson.Length);
+                    stream.Write(returnJson, 0, returnJson.Length); // byte []
                     // stream.Write(returnByteArr, 0, returnByteArr.Length);
                 }
             }
@@ -76,24 +107,27 @@ namespace MyServer {
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"请求处理完成：{guid},时间：{ DateTime.Now.ToString()}\r\n");
         }
+
+// 服务器: 所以它处理来自于客户端的网络请求,除非主请求数据异常,否则它就返回请求成功,并作后续处理        
         private static string HandleRequest(HttpListenerRequest request, HttpListenerResponse response) {
             string data = null;
             try {
                 var byteList = new List<byte>();
                 var byteArr = new byte[2048];
                 int readLen = 0;
-                int len = 0;
+                int len = 0; // 记录输入流中能够读取的实际片段长度
                 // 接收客户端传过来的数据并转成字符串类型
                 do {
-                    readLen = request.InputStream.Read(byteArr, 0, byteArr.Length);
+                    // 每次读取 byteArr.Length个字节的长度,把它贴到byteList链表缓存中.下次再试图读这么长的片段,直到把输入流读完为止
+                    readLen = request.InputStream.Read(byteArr, 0, byteArr.Length); // 它这里流式读取,感觉是自动以frame为单位后移的(流的片段读过了,就不见了)
                     len += readLen;
                     byteList.AddRange(byteArr);
                 
-                } while (readLen != 0);
-                data = Encoding.UTF8.GetString(byteList.ToArray(),0, len);
+                } while (readLen != 0); // 当读到输入流结尾的时候,就会返回0
+                data = Encoding.UTF8.GetString(byteList.ToArray(), 0, len);
                 // 获取得到数据data可以进行其他操作
             }
-            catch (Exception ex) {
+            catch (Exception ex) { // 来自于客户端的请求可能存在异常煌情况,抛回去
                 response.StatusDescription = "404";
                 response.StatusCode = 404;
                 Console.ForegroundColor = ConsoleColor.Red;
@@ -105,8 +139,10 @@ namespace MyServer {
             Console.ForegroundColor = ConsoleColor.Green;
             var a = request.QueryString["id"];// 获取客户端发送过来的参数
             Console.WriteLine($"客户端通过{request.HttpMethod}方式发来的数据:{data},参数:{request.QueryString["id"]}时间：{DateTime.Now.ToString()}");
+// 这里只返回 这个标记 没什么意思. 一般是返回一个请求成功的回执给客户端吗 OK ?
             return $"接收数据完成";
         }
+
         // 读取json文件
         public static string GetJsonFile(string jsonfile) {
             string jsonstr = "";

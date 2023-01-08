@@ -126,7 +126,7 @@ New-NetFirewallRule -DisplayName "Me" -Direction Outbound -Program "Program File
 - v0.001版源参考:https://blog.csdn.net/yang_aq/article/details/116032573?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-0-116032573-blog-119875873.pc_relevant_3mothn_strategy_recovery&spm=1001.2101.3001.4242.1&utm_relevant_index=2
 - 客户端向服务器请求资源包文件更新，视用户玩家必须登录与否来确定。若所有游戏强制开启登录模式才能玩，那么服务器一定需要身份验证，只有游戏的玩家才可以自动检测请求拿到最新的资源包文件。身份验证登录Session + Cookie模式。若玩家不强制登录，那么服务器端也就不需要身份验证直接下载（可能会经受恶意网络攻击，因为别人可以生成死循代码把脆弱的服务器给搞死了。。。。。）
 - 针对上面的想到的恶意网络攻击，服务器端可以需要一些基本的自卫模式或是网络申请过滤，同一用户的重复申请，或是某组用户的重复循环周期性申请等。。。。。
-- 
+- 那么针对上面的来自于客户端的登录与否，可能会涉及到一个问题就是：什么时候是检测和下测热更新资源包的时机？(完全废除掉登录模式之后会没有关系)强制登录模式，必须得等到登录后，引发一个后续问题就是：客户端冷启动可能会有会存在的应用背景黑屏等冷启动温启动所造成的启动延迟，会需要必要的处理以便能够优化这个步骤，提升用户体验
 - 
 - 
 - 它的性能瓶颈等，暂时都还没有考虑。它是一个包装的轻量版的什么网络服务器。可以做到轻量，也就不可避免地意味着：在努力轻量的过程中，可能正常相对重量原始包装中的某些方法被丢掉了，没有实现，以至于某些情境下，使用这个轻量版来开发的程序员，如我，会踩到各种坑，要自己解决，也是一个学习的过程。某个踩坑纪录可以参考：https://tttang.com/archive/1451/
@@ -137,6 +137,233 @@ New-NetFirewallRule -DisplayName "Me" -Direction Outbound -Program "Program File
 - 接上面链接： GUID  方法的实现参考  https://blog.csdn.net/pinebud55/article/details/51526454?spm=1001.2101.3001.6650.3&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-3-51526454-blog-93522065.pc_relevant_3mothn_strategy_recovery&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-3-51526454-blog-93522065.pc_relevant_3mothn_strategy_recovery&utm_relevant_index=4
 - *HttpServer:* 一个仍然简单粗糙的封装 https://blog.csdn.net/hong2511/article/details/81777060?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-1-81777060-blog-119875873.pc_relevant_3mothn_strategy_recovery&spm=1001.2101.3001.4242.2&utm_relevant_index=3
 - 看见一个像是 *专门弄服务器端的人写的库和封装: 可以去学习了解一下,有个库和项目,两个工程*:  https://blog.csdn.net/moasp/article/details/120080044?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-5-120080044-blog-119875873.pc_relevant_3mothn_strategy_recovery&spm=1001.2101.3001.4242.4&utm_relevant_index=7
+- 关于异步处理1：1000的：就是异步线程线程中去处理：https://www.cnblogs.com/zhanhengzong/archive/2012/12/11/2813254.html
+#+begin_SRC csharp
+ 1         //客户请求处理
+ 2         static void ProcessHttpClient(object obj)
+ 3         {
+ 4             HttpListenerContext context = obj as HttpListenerContext;
+ 5             HttpListenerRequest request = context.Request;
+ 6             HttpListenerResponse response = context.Response;
+ 7 
+ 8             //do something as you want
+ 9             string responseString = string.Format("<HTML><BODY> {0}</BODY></HTML>", DateTime.Now);
+10             byte[] buffer = System.Text.Encoding.UTF8.GetBytes(responseString);
+11             response.ContentLength64 = buffer.Length;
+12             System.IO.Stream output = response.OutputStream;
+13             output.Write(buffer, 0, buffer.Length);
+14             Console.WriteLine(Encoding.Default.GetString(buffer));
+15             //关闭输出流，释放相应资源
+16             output.Close();
+17         }
+18 
+19         public static void NewMethod2()
+20         {
+21             HttpListener listener = new HttpListener();
+22             listener.Prefixes.Add("http://192.168.213.119:9999/"); //要监听的url范围
+23             listener.Start();   //开始监听端口，接收客户端请求
+24             Console.WriteLine("Listening");
+25 
+26             try
+27             {
+28                 while (true)
+29                 {
+30                     //获取一个客户端请求为止
+31                     HttpListenerContext context = listener.GetContext();
+32                     //将其处理过程放入线程池
+33                     System.Threading.ThreadPool.QueueUserWorkItem(ProcessHttpClient, context);
+34                 }
+35             }
+36             catch (Exception e) {
+39                 Console.WriteLine(e.Message);
+40             }
+41             finally {
+43                 listener.Stop();    //关闭HttpListener
+44             }
+49         }
+#+END_SRC
+- 它说还有重定向什么的：
+#+BEGIN_SRC csharp
+ 1   public static void NewMethod3()
+ 2         {
+ 3             HttpListener listener = new HttpListener();
+ 4             listener.Prefixes.Add("http://localhost/"); //添加需要监听的url范围
+ 5             listener.Start(); //开始监听端口，接收客户端请求
+ 6             Console.WriteLine("Listening...");
+ 7 
+ 8             //阻塞主函数至接收到一个客户端请求为止
+ 9             HttpListenerContext context = listener.GetContext();
+10             HttpListenerRequest request = context.Request;
+11             HttpListenerResponse response = context.Response;
+12 
+13             string desUrl = "http://www.google.com";
+14            // string desUrl = "a.txt";
+15             response.Redirect(desUrl);
+16             response.OutputStream.Close();
+17         }
+#+END_SRC
+- 文件下载
+#+BEGIN_SRC csharp
+1 static void Method4(object obj)
+ 2         {
+ 3             HttpListenerContext context = obj as HttpListenerContext;
+ 4             HttpListenerRequest request = context.Request;
+ 5             HttpListenerResponse response = context.Response;
+ 6 
+ 7             response.ContentType = "application/octet-stream";
+ 8 
+ 9             string fileName = "time.txt";
+10             response.AddHeader("Content-Disposition", "attachment;FileName=" + fileName);
+11 
+12             byte[] data = Encoding.Default.GetBytes(string.Format("当前时间: {0}", DateTime.Now));
+13             response.ContentLength64 = data.Length;
+14             System.IO.Stream output = response.OutputStream;
+15             output.Write(data, 0, data.Length);
+16             output.Close();
+17         }
+18 
+19         public static void NewMethod4()
+20         {
+21             HttpListener listener = new HttpListener();
+22             listener.Prefixes.Add("http://localhost/"); //要监听的url范围
+23             listener.Start();   //开始监听端口，接收客户端请求
+24             Console.WriteLine("Listening");
+25 
+26             try
+27             {
+28                 while (true)
+29                 {
+30                     //获取一个客户端请求为止
+31                     HttpListenerContext context = listener.GetContext();
+32                     //将其处理过程放入线程池
+33                     System.Threading.ThreadPool.QueueUserWorkItem(Method4, context);
+34                 }
+35             }
+36             catch (Exception e)
+37             {
+38 
+39                 Console.WriteLine(e.Message);
+40             }
+41             finally
+42             {
+43                 listener.Stop();    //关闭HttpListener
+44             }
+45         }
+#+END_SRC
+- 断点续传：？
+#+BEGIN_SRC csharp
+1  static void Method5(object obj)
+ 2         {
+ 3             HttpListenerContext context = obj as HttpListenerContext;
+ 4             HttpListenerRequest request = context.Request;
+ 5             HttpListenerResponse response = context.Response;
+ 6 
+ 7             FileStream fs = File.OpenRead(@"e:\xmlS.xml"); //待下载的文件
+ 8 
+ 9             long startPos = 0;
+10             string range = request.Headers["Range"];
+11             bool isResume = string.IsNullOrEmpty(range);
+12             if (!isResume) //断点续传请求
+13             {
+14                 //格式bytes=9216-
+15                 startPos = long.Parse(range.Split('=')[1].Split('-')[0]);
+16                 response.StatusCode = 206;
+17                 response.ContentLength64 = fs.Length - startPos;
+18                 fs.Position = startPos; //设置传送的起始位置
+19             }
+20             else
+21             {
+22                 response.ContentLength64 = fs.Length;
+23             }
+24 
+25             Console.WriteLine("request header");
+26             Console.WriteLine(request.Headers.ToString());
+27 
+28             response.ContentType = "application/octet-stream";
+29 
+30             string fileName = "xmlS.xml";
+31             response.AddHeader("Content-Disposition", "attachment;FileName=" + fileName);
+32             Stream output = response.OutputStream;
+33 
+34             try
+35             {
+36                 Console.WriteLine("response header");
+37                 Console.WriteLine(response.Headers.ToString());
+38                 CopyStream(fs, output); //文件传输
+39                 output.Close();
+40             }
+41             catch (HttpListenerException e) //在未写完所有文件时，如果客户端关闭连接，会抛此异常
+42             {
+43                 Console.WriteLine(e.Message);
+44                 //output.Close(); //如果执行此函数会抛异常在写入所有字节之前不能关闭流。
+45             }
+46         }
+47 
+48         static void CopyStream(Stream orgStream, Stream desStream)
+49         {
+50             byte[] buffer = new byte[1024];
+51 
+52             int read = 0;
+53             while ((read = orgStream.Read(buffer, 0, 1024)) > 0)
+54             {
+55                 desStream.Write(buffer, 0, read);
+56 
+57                 System.Threading.Thread.Sleep(1000); //模拟慢速设备
+58             }
+59         }
+60         public static void NewMethod5()
+61         {
+62             HttpListener listener = new HttpListener();
+63             listener.Prefixes.Add("http://localhost/"); //要监听的url范围
+64             listener.Start();   //开始监听端口，接收客户端请求
+65             Console.WriteLine("Listening");
+66 
+67             try
+68             {
+69                 while (true)
+70                 {
+71                     //获取一个客户端请求为止
+72                     HttpListenerContext context = listener.GetContext();
+73                     //将其处理过程放入线程池
+74                     System.Threading.ThreadPool.QueueUserWorkItem(Method5, context);
+75                 }
+76             }
+77             catch (Exception e)
+78             {
+79 
+80                 Console.WriteLine(e.Message);
+81             }
+82             finally
+83             {
+84                 listener.Stop();    //关闭HttpListener
+85             }
+86         }
+#+END_SRC
+- 多线程的几种方式: https://www.cnblogs.com/zhanhengzong/archive/2012/12/11/2813234.html
+- GZip解压缩: https://www.cnblogs.com/zhanhengzong/archive/2012/12/11/2813323.html 这些自己上传与下载的过程中如果用到，都是可以简单plugin的，是很成熟的上传下载压缩与解压的方法了
+- 多个文件的批量上传：https://blog.csdn.net/u014056045/article/details/126710365?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-0-126710365-blog-120197381.pc_relevant_multi_platform_whitelistv4&spm=1001.2101.3001.4242.1&utm_relevant_index=3
+- 上面的有用，是因为当我有一批热更新的资源包需要更新上传至服务器，我当然希望最少的操作，一次把所有需要上传的，甚至是不同类型的文件都上次上传提交给服务器
+- 本来大家都是多平台游戏来着，但是因为我只做了安卓端，所以我的服务器与只配置安卓端所需要的资源包。那么我是否可以一次上传一个文件夹呢？https://download.csdn.net/download/cfantasy/10213352?spm=1001.2101.3001.6661.1&utm_medium=distribute.pc_relevant_t0.none-task-download-2%7Edefault%7ECTRLIST%7EPaid-1-10213352-blog-126710365.pc_relevant_landingrelevant&depth_1-utm_source=distribute.pc_relevant_t0.none-task-download-2%7Edefault%7ECTRLIST%7EPaid-1-10213352-blog-126710365.pc_relevant_landingrelevant&utm_relevant_index=1
+- 上传超大文件或是文件夹：原则上可行，问题就是文件的重复上传，因为文件里可能会有不曾更新过的文件。
+- 那么是否可以有一种算法，可以上传前快速比对，对文件夹里上传前不曾作过更新的文件自动过滤掉不再上传服务器，因为延后执行到服务器又会进一步成为服务器的性能限制因素？
+- Unity Editor里帮助程序，帮助在某个特定文件里的文件发生改变时自己反馈到某个客户端本地资源文件的管理文件，最好能够算是什么　MD5码之类的（客户端本地资源文　的MD5码表）？因为我改第一次是变化了，但是发现我改错了，又倒回先前版本了。它并不曾真正变化，根据与服务器MD5比对，上传前知道，我不需要上传这个折腾过但没有变化的文件。
+- 那么针对这种需要，客户端对服务器的观察者模式变成为：每当服务器的一个某些或是所有文件有过任何变化，服务器可以广播给与它连接着的所有的客户端（假如说1000个用户当时有100个在线）
+- 当某个客户端打开应用时，首先去连接网络服务器，要求下载最新（其实也只有一个文件）资源文件码表。拉下来后同自己本地码表比对，过滤出100个文件有27个需要更新，那么申请服务器一次拉取27个最新资源包文件
+- 上面是客户端启动后，与服务器建立起连接之后，客户端还要再向在服务器请求索拿MD5表，然后服务器再把最新码表返回来。。。它仍然是慢呀
+- 当任何一个客户端与服务器连接后第一件事一定是同步MD5码表，那么服务器可以选择：在任何客户端与其建立连接时，直接将最新万能表发给客户端，减少一次网络请求与返回
+  - 服务器可以发给所有与它建立连接的客户端
+  - 服务器也可以：关联身后或是远程数据库。游戏的初期阶段用户比较少，服务器可以有本地缓存，类似多线程安全的(Concurrent?)HashSet,记录所有1000个用户中保持MD5码表与服务器最新同步状态的100个用户（身份，或是能够标记客户端身份的连接相关参数，IP地址？）在客户端第一次同服务器想要建立连接时，服务器能否给所有没能同步到最新资源的客户端直接返回MD5码表
+  - 这里接下来的犄角旮旯角是：服务器下传码表成功了吗？如何标记鉴定客户端收到最新码表后的后续事件：
+  - 正常情况下，客户端MD5比对程序之后，客户端会再发请求，要求服务器下传某些资源文件到客户端。如果服务器下传成功，服务器可以标记本地缓存：这个客户端是同步的，将客户端加入本地缓存
+  - 我是一个IT程序员，我自己手动将我一个安卓手机上的资源复制到了另一个安卓平板上。当我的平板连到服务器（这里看见，前面是unity editor是不对的，是应用中的一段文件自动检测和算法　程序，因为需要它可以运行在安卓客户端的手机或是平板上），服务器向平板下传了码表，平板不会再向服务器索要更新资源请求。服务器要如何处理这类情况？累积下传五次连接（或是客户端的在线时间，与服务器的连接时间超过某个阀值，自动视为客户端端已更新？），仍收不到客户端的请求。这个想得稍微偏了一点儿
+  - 客户端网线断开掉线的情况比较好处理
+  - 
+  - 
+- 可否实现批量下载呢？因为我作为一个客户端，我希望一次拉取所有服务端提供的可热更新的资源包，把自己的应用在最短的时间消耗内更新到位供我玩儿
+- 所以，在不同的网络请求方式，网络传输速度与请求提交执行效率，以及用户的便利等不同需要之间，需要一些基础的网络搜索，来帮助自己把这些原理搞清楚，才能想设计和实现一个相对比较好的方案
+- 那么现在的最大困惑变成是：不想使用静态的，因为资源包可大可小，可多可少，我可以随时更改或是删除某个某些资源包。那么怎么与背后的存储数据库连起来呢？这里的问题是： *我只是一个文件服务器，为什么我就必须要背个数据库？* 我既然是服务器，存放在网络空间，我有地方有网络空间存放这引起文件不就可以了吗？文件服务器为什么会需要数据库呢？
+- 下午了，在图书馆的小屏笔记本，可能不是一个读源码的狠好的环境。会试图网上作必要的搜索，帮助自己理清楚这个文件服务器：提升1服务器连1000 10000个客户端的设计实现原理，以及可能会存在的性能瓶颈，以及再往自己项目服务器发民所需要的必要知识点。
+- 如果这是一个动态网络文件服务器，应该也是需要背后有有一个数据库来作支持的。虽然自已目前只有不到或是10个左右的文件。这块儿也需要查一下
 - 
 - 
 - 
@@ -144,8 +371,9 @@ New-NetFirewallRule -DisplayName "Me" -Direction Outbound -Program "Program File
 - 
 - 
 - 
-- 
-- 
+
+
+
 
 
 
